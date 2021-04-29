@@ -1,0 +1,43 @@
+#!/bin/sh
+
+# Author:				Action <ahmed@action-server.com>
+# License:			GNU GPLv3
+# Description:	Modular i3 config support
+
+# ENV
+NAME="$(basename $0)"
+WORKDIR="$XDG_CONFIG_HOME"/i3
+
+prepare(){
+	#Create necessary files and directories
+	mkdir -p "$WORKDIR"/configs
+	mkdir -p "$WORKDIR"/data
+	touch "$WORKDIR"/data/list
+}
+
+run(){
+	# Clear i3 config file
+	cat /dev/null > "$WORKDIR"/config
+
+	# Looping through files in the list and concatenating the output
+	while read x; do
+		# Ignore comments
+		if printf "$x" | grep -q '^\s*#.*$'; then
+			continue
+		elif [ -f "$WORKDIR"/configs/"$x" ]; then
+			cat "$WORKDIR"/configs/"$x" >> "$WORKDIR"/config
+		else
+			echo "$NAME - Error: $WORKDIR/configs/$x not found." >&2
+			exit 1
+		fi
+	done < "$WORKDIR"/data/list
+	i3-msg 'reload' && notify-send 'i3' 'Reloaded config'
+}
+
+main(){
+	prepare
+	run
+	printf "$NAME: Done."
+}
+
+main
