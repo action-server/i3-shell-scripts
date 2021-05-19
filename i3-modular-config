@@ -32,7 +32,6 @@ run(){
 			exit 1
 		fi
 	done < "$WORKDIR"/data/list
-	i3-msg 'reload' && notify-send 'i3' 'Reloaded config'
 }
 
 main(){
