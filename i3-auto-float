@@ -1,0 +1,30 @@
+#!/bin/sh
+
+# Author:       Action <dev@action-server.com>
+# License:      GNU GPLv3
+# Description:  Add or remove floating flag
+
+# ENV
+WORKDIR="$XDG_CONFIG_HOME"/i3
+NAME="$(basename $0)"
+mkdir -p "$WORKDIR"/configs
+touch "$WORKDIR"/configs/float.config
+
+if ! which i3-modular-config >/dev/null 2>&1; then
+	echo "$NAME - Error: Dependency not found: \"i3-modular-config\"."
+	exit 1
+fi
+
+# Run
+current_window_class="$(xprop -id $(xdotool getactivewindow) | grep '^WM_CLASS(STRING)' | sed -n 's/^WM_CLASS.*"\(.*\)"$/\1/p')"
+current_window_name="$(xprop -id $(xdotool getactivewindow) | grep '^WM_NAME(STRING)' | sed -n 's/^WM_NAME.*"\(.*\)"$/\1/p')"
+[ -n "$current_window_class" ] && current_window_class="class=\"$current_window_class\""
+[ -n "$current_window_name" ] && current_window_name="title=\"$current_window_name\""
+if ! grep -q -i "${current_window_class}.*${current_window_name}" "$WORKDIR"/configs/float.config; then
+	printf "for_window [$current_window_class $current_window_name] floating enable\n" >> "$WORKDIR"/configs/float.config
+else
+	sed -i.bak '/^.*'"$current_window_class"'.*'"$current_window_name"'.*$/d' "$WORKDIR"/configs/float.config
+fi
+
+i3-modular-config && i3-msg 'reload' && notify-send 'i3' 'Reloaded config'
+i3-msg 'floating toggle'

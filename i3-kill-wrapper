@@ -1,0 +1,24 @@
+#!/bin/sh
+
+# Author:       Action <dev@action-server.com>
+# License:      GNU GPLv3
+# Description:  Check for persistence before killing a window
+
+# ENV
+WORKDIR="$XDG_CONFIG_HOME"/i3
+
+# Run
+current_window_id="$(xprop -id $(xdotool getactivewindow))"
+while read x; do
+	if printf "$current_window_id" | grep -q -i "$x"; then
+		# Send Notification
+		notify-send 'i3' 'Persist on'
+
+		# Go to previous workspace
+		# i3-msg 'workspace back_and_forth'
+		exit 0
+	fi
+done < "$WORKDIR"/data/persist
+
+# kill window
+i3-msg 'kill'
