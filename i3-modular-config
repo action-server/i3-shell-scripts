@@ -4,40 +4,61 @@
 # License:      GNU GPLv3
 # Description:  Modular i3 config support
 
-# ENV
-NAME="$(basename $0)"
-WORKDIR="$XDG_CONFIG_HOME"/i3
+# Env
+set -e
+script_name="$(basename $0)"
+script_ver='v0.1'
 
-prepare(){
-	#Create necessary files and directories
-	mkdir -p "$WORKDIR"/configs
-	mkdir -p "$WORKDIR"/data
-	touch "$WORKDIR"/data/list
-	[ -f "$WORKDIR"/config.bak ] || cp "$WORKDIR"/config "$WORKDIR"/config.bak
+print_error(){
+	message="$1"
+	echo "${script_name} - Error: ${message}" >&2
+	notify-send "${script_name}" "Error: ${message}"
+}
+
+setup(){
+	workdir="$XDG_CONFIG_HOME"/i3
+
+	# Check XDG standard
+	if [ -z "$XDG_CONFIG_HOME" ]; then
+		workdir="$HOME"/.i3
+	fi
+
+	# Create necessary files and directories
+	mkdir -p "$workdir"/configs
+	mkdir -p "$workdir"/data
+	touch "$workdir"/data/list
+
+	# Create backup config
+	if ! [ -f "$workdir"/config.bak ] && [ -f "$workdir"/config ]; then
+		cp "$workdir"/config "$workdir"/config.bak
+	fi
 }
 
 run(){
 	# Clear i3 config file
-	cat /dev/null > "$WORKDIR"/config
+	cat /dev/null > "$workdir"/config
 
-	# Looping through files in the list and concatenating the output
+	# Looping through files in the list and Appending the output to config
 	while read x; do
 		# Ignore comments
-		if printf "$x" | grep -q '^\s*#.*$'; then
+		if printf '%s' "$x" | grep -q '^\s*#.*$'; then
 			continue
-		elif [ -f "$WORKDIR"/configs/"$x" ]; then
-			cat "$WORKDIR"/configs/"$x" >> "$WORKDIR"/config
-		else
-			echo "$NAME - Error: $WORKDIR/configs/$x not found." >&2
+		fi
+
+		# Check file found
+		if ! [ -f "$workdir"/configs/"$x" ]; then
+			print_error "${workdir}/configs/${x} not found."
 			exit 1
 		fi
-	done < "$WORKDIR"/data/list
+
+		# Append content to config
+		cat "$workdir"/configs/"$x" >> "$workdir"/config
+	done < "$workdir"/data/list
 }
 
 main(){
-	prepare
+	setup
 	run
-	printf "$NAME: Done."
 }
 
-main
+main "$@"

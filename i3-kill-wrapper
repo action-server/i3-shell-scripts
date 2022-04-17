@@ -4,21 +4,44 @@
 # License:      GNU GPLv3
 # Description:  Check for persistence before killing a window
 
-# ENV
-WORKDIR="$XDG_CONFIG_HOME"/i3
+# Env
+set -e
 
-# Run
-current_window_id="$(xprop -id $(xdotool getactivewindow))"
-while read x; do
-	if printf "$current_window_id" | grep -q -i "$x"; then
-		# Send Notification
-		notify-send 'i3' 'Persist on'
+setup(){
+	workdir="$XDG_CONFIG_HOME"/i3
 
-		# Go to previous workspace
-		# i3-msg 'workspace back_and_forth'
-		exit 0
+	# Check XDG standard
+	if [ -z "$XDG_CONFIG_HOME" ]; then
+		workdir="$HOME"/.i3
 	fi
-done < "$WORKDIR"/data/persist
 
-# kill window
-i3-msg 'kill'
+	mkdir -p "$workdir"/data
+	touch "$workdir"/data/persist
+}
+
+run(){
+	current_window_info="$(xprop -id "$(xdotool getactivewindow)")"
+
+	while read x; do
+		if printf '%s' "$x" | grep -q '^\s*#.*$'; then
+			continue
+		fi
+
+		if printf '%s' "$current_window_info" | grep -q -i "$x"; then
+			# Send Notification
+			notify-send 'i3' 'Persist on'
+			return
+		fi
+	done < "$workdir"/data/persist
+
+	# kill window
+	i3-msg 'kill'
+}
+
+
+main(){
+	setup
+	run
+}
+
+main "$@"
