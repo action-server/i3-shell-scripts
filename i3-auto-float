@@ -7,7 +7,6 @@
 # Env
 set -e
 script_name="$(basename "$0")"
-script_ver='v0.1'
 
 print_error(){
 	message="$1"
@@ -16,53 +15,63 @@ print_error(){
 }
 
 setup(){
+	XDG_CONFIG_HOME="${XDG_CONFIG_HOME:-$HOME/.config}"
 	workdir="$XDG_CONFIG_HOME"/i3
+	TMP='/tmp/i3-auto-float.tmp'
 
-	# Check XDG standard
-	if [ -z "$XDG_CONFIG_HOME" ]; then
-		workdir="$HOME"/.i3
+	mkdir -p "$workdir"/conf.d
+	touch "$workdir"/conf.d/float.conf
+}
+
+modify_config(){
+	# Get current window class name
+	current_active_window_id="$(xdotool getactivewindow)"
+	current_window_class_info="$(xprop WM_CLASS -id "$current_active_window_id")"
+	current_window_class="$(printf '%s' "$current_window_class_info" | sed -n 's/^WM_CLASS.*".*".*"\(.*\)"$/\1/p')"
+
+	# Return if window class name is empty
+	if [ -z "$current_window_class" ]; then
+		print_error 'Window class not found.'
+		return
+	fi
+
+	# Add i3 syntax
+	current_window_class='class="'"$current_window_class"'"'
+
+	# check for_window rule
+	if grep -q -i '^\s*for_window \['"$current_window_class"'\] floating enable$' "$workdir"/conf.d/float.conf; then
+		# Remove for_window rule
+		sed '/^\s*for_window \['"$current_window_class"'\] floating enable$/d' \
+			"$workdir"/conf.d/float.conf > "$TMP"
+
+		# Copy tmp file to float.conf
+		cp "$TMP" "$workdir"/conf.d/float.conf
+	else
+		# Add for_window rule
+		printf '%s\n' 'for_window ['"$current_window_class"'] floating enable' >> "$workdir"/conf.d/float.conf
 	fi
 
 	# Check i3-modular-config is installed
-	if ! command -v i3-modular-config >/dev/null 2>&1; then
-		print_error 'i3-modular-config missing.'
-		exit 1
+	if command -v i3-modular-config >/dev/null 2>&1; then
+		i3-modular-config
 	fi
 
-	mkdir -p "$workdir"/configs
-	touch "$workdir"/configs/float.config
+	# Reload i3 config
+	i3-msg 'reload'
 }
 
-run(){
-	# Get window class and name
-	current_window_class="$(xprop WM_CLASS -id "$(xdotool getactivewindow)" | sed -n 's/^WM_CLASS.*"\(.*\)"$/\1/p')"
-	current_window_name="$(xprop WM_NAME -id "$(xdotool getactivewindow)" | sed -n 's/^WM_NAME.*"\(.*\)"$/\1/p')"
-
-	# Check window class or name is empty
-	if [ -z "$current_window_class" ] || [ -z "$current_window_name" ]; then
-		print_error 'Window class or name not found.'
-		i3-msg 'floating toggle'
-		exit 1
-	fi
-
-	current_window_class="class=\"$current_window_class\""
-	current_window_name="title=\"$current_window_name\""
-
-	# Toggle float
-	if ! grep -q -i "${current_window_class}.*${current_window_name}" "$workdir"/configs/float.config; then
-		printf '%s\n' "for_window [$current_window_class $current_window_name] floating enable" >> "$workdir"/configs/float.config
-	else
-		sed -i.bak '/^.*'"$current_window_class"'.*'"$current_window_name"'.*$/d' "$workdir"/configs/float.config
-	fi
-
-	# Reload i3 and notify user
-	i3-modular-config && i3-msg 'reload'
+toggle_float(){
+	# Make window float
 	i3-msg 'floating toggle'
 }
 
 main(){
 	setup
-	run
+	modify_config
+	toggle_float
 }
+
+# Trap remove tmp file
+trap 'rm -f "$TMP"' EXIT INT QUIT TERM HUP
 
 main "$@"

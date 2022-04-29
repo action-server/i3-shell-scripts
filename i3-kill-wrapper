@@ -8,36 +8,35 @@
 set -e
 
 setup(){
+	XDG_CONFIG_HOME="${XDG_CONFIG_HOME:-$HOME/.config}"
 	workdir="$XDG_CONFIG_HOME"/i3
-
-	# Check XDG standard
-	if [ -z "$XDG_CONFIG_HOME" ]; then
-		workdir="$HOME"/.i3
-	fi
 
 	mkdir -p "$workdir"/data
 	touch "$workdir"/data/persist
 }
 
 run(){
-	current_window_info="$(xprop -id "$(xdotool getactivewindow)")"
+	# Get current window info
+	current_active_window_id="$(xdotool getactivewindow)"
+	current_window_info="$(xprop -id "$current_active_window_id")"
 
-	while read x; do
-		if printf '%s' "$x" | grep -q '^\s*#.*$'; then
+	while IFS= read -r line; do
+		# Ignore comments
+		if printf '%s' "$line" | grep -q '^\s*#.*$'; then
 			continue
 		fi
 
-		if printf '%s' "$current_window_info" | grep -q -i "$x"; then
-			# Send Notification
+		# Check if window is persisted
+		if printf '%s' "$current_window_info" | grep -q -i "$line"; then
+			# Send desktop notification
 			notify-send 'i3' 'Persist on'
 			return
 		fi
 	done < "$workdir"/data/persist
 
-	# kill window
+	# Kill window
 	i3-msg 'kill'
 }
-
 
 main(){
 	setup

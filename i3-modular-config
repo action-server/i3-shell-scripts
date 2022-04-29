@@ -6,8 +6,7 @@
 
 # Env
 set -e
-script_name="$(basename $0)"
-script_ver='v0.1'
+script_name="$(basename "${0}")"
 
 print_error(){
 	message="$1"
@@ -16,49 +15,47 @@ print_error(){
 }
 
 setup(){
-	workdir="$XDG_CONFIG_HOME"/i3
-
-	# Check XDG standard
-	if [ -z "$XDG_CONFIG_HOME" ]; then
-		workdir="$HOME"/.i3
-	fi
+	XDG_CONFIG_HOME="${XDG_CONFIG_HOME:-$HOME/.config}"
+	workdir="${XDG_CONFIG_HOME}"/i3
+	TMP='/tmp/i3-modular-config.tmp'
 
 	# Create necessary files and directories
-	mkdir -p "$workdir"/configs
+	mkdir -p "$workdir"/conf.d
 	mkdir -p "$workdir"/data
 	touch "$workdir"/data/list
-
-	# Create backup config
-	if ! [ -f "$workdir"/config.bak ] && [ -f "$workdir"/config ]; then
-		cp "$workdir"/config "$workdir"/config.bak
-	fi
 }
 
 run(){
-	# Clear i3 config file
-	cat /dev/null > "$workdir"/config
+	# Clear tmp file
+	cat /dev/null > "$TMP"
 
-	# Looping through files in the list and Appending the output to config
-	while read x; do
-		# Ignore comments
-		if printf '%s' "$x" | grep -q '^\s*#.*$'; then
+	# Looping through files in the list and Appending the output to tmp file
+	while IFS= read -r x; do
+		# Ignore comments and empty lines
+		if printf '%s' "$x" | grep -q '^\s*\(#.*\|\)$'; then
 			continue
 		fi
 
-		# Check file found
-		if ! [ -f "$workdir"/configs/"$x" ]; then
-			print_error "${workdir}/configs/${x} not found."
-			exit 1
-		fi
-
-		# Append content to config
-		cat "$workdir"/configs/"$x" >> "$workdir"/config
+		# Append content to tmp file
+		cat "$workdir"/conf.d/"$x" >> "$TMP"
 	done < "$workdir"/data/list
+
+	# Check tmp file is empty
+	if ! [ -s "$TMP" ]; then
+		print_error 'Config file is empty.'
+		return
+	fi
+
+	# Copy tmp file to config
+	cp "$TMP" "$workdir"/config
 }
 
 main(){
 	setup
 	run
 }
+
+# Trap remove tmp file
+trap 'rm -f "$TMP"' EXIT INT QUIT TERM HUP
 
 main "$@"
