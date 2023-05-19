@@ -4,37 +4,33 @@
 # License:      GNU GPLv3
 # Description:  Check for persistence before killing a window
 
-# Env
 set -e
 
-setup(){
-	XDG_CONFIG_HOME="${XDG_CONFIG_HOME:-$HOME/.config}"
-	workdir="$XDG_CONFIG_HOME"/i3
+XDG_CONFIG_HOME="${XDG_CONFIG_HOME:-$HOME/.config}"
+WORKING_DIR="${XDG_CONFIG_HOME}/i3"
 
-	mkdir -p "$workdir"/data
-	touch "$workdir"/data/persist
+setup(){
+	mkdir -p "${WORKING_DIR}/data"
+	touch "${WORKING_DIR}/data/persist"
 }
 
 run(){
-	# Get current window info
 	current_active_window_id="$(xdotool getactivewindow)"
-	current_window_info="$(xprop -id "$current_active_window_id")"
+	current_window_info="$(xprop -id "${current_active_window_id}")"
 
 	while IFS= read -r line; do
 		# Ignore comments
-		if printf '%s' "$line" | grep -q '^\s*#.*$'; then
+		if printf '%s' "${line}" | grep -q '^\s*#.*$'; then
 			continue
 		fi
 
 		# Check if window is persisted
-		if printf '%s' "$current_window_info" | grep -q -i "$line"; then
-			# Send desktop notification
+		if printf '%s' "${current_window_info}" | grep -q -i "${line}"; then
 			notify-send 'i3' 'Persist on'
 			return
 		fi
-	done < "$workdir"/data/persist
+	done < "${WORKING_DIR}/data/persist"
 
-	# Kill window
 	i3-msg 'kill'
 }
 

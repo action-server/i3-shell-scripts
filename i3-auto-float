@@ -4,74 +4,60 @@
 # License:      GNU GPLv3
 # Description:  Enable or disable floating for specified windows
 
-# Env
 set -e
-script_name="$(basename "$0")"
+
+XDG_CONFIG_HOME="${XDG_CONFIG_HOME:-${HOME}/.config}"
+WORKING_DIR="${XDG_CONFIG_HOME}/i3"
+TEMP_DIR='/tmp/i3-auto-float.tmp'
 
 print_error(){
-	message="$1"
-	echo "${script_name} - Error: ${message}" >&2
-	notify-send "${script_name}" "Error: ${message}"
+	message="${1}"
+	printf '%s\n' "Error: ${message}" >&2
+	notify-send "Error: ${message}"
 }
 
 setup(){
-	XDG_CONFIG_HOME="${XDG_CONFIG_HOME:-$HOME/.config}"
-	workdir="$XDG_CONFIG_HOME"/i3
-	TMP='/tmp/i3-auto-float.tmp'
+	mkdir -p "${WORKING_DIR}/conf.d"
+	touch "${WORKING_DIR}/conf.d/float.conf"
+}
 
-	mkdir -p "$workdir"/conf.d
-	touch "$workdir"/conf.d/float.conf
+get_window_info(){
+	current_active_window_id="$(xdotool getactivewindow)"
+	current_window_class_info="$(xprop WM_CLASS -id "${current_active_window_id}")"
+	current_window_class="$(printf '%s' "${current_window_class_info}" | sed -n 's/^WM_CLASS.*".*".*"\(.*\)"$/\1/p')"
 }
 
 modify_config(){
-	# Get current window class name
-	current_active_window_id="$(xdotool getactivewindow)"
-	current_window_class_info="$(xprop WM_CLASS -id "$current_active_window_id")"
-	current_window_class="$(printf '%s' "$current_window_class_info" | sed -n 's/^WM_CLASS.*".*".*"\(.*\)"$/\1/p')"
-
-	# Return if window class name is empty
-	if [ -z "$current_window_class" ]; then
+	if [ -z "${current_window_class}" ]; then
 		print_error 'Window class not found.'
 		return
 	fi
 
-	# Add i3 syntax
-	current_window_class='class="'"$current_window_class"'"'
-
-	# check for_window rule
-	if grep -q -i '^\s*for_window \['"$current_window_class"'\] floating enable$' "$workdir"/conf.d/float.conf; then
-		# Remove for_window rule
-		sed '/^\s*for_window \['"$current_window_class"'\] floating enable$/d' \
-			"$workdir"/conf.d/float.conf > "$TMP"
-
-		# Copy tmp file to float.conf
-		cp "$TMP" "$workdir"/conf.d/float.conf
-	else
-		# Add for_window rule
-		printf '%s\n' 'for_window ['"$current_window_class"'] floating enable' >> "$workdir"/conf.d/float.conf
+	if ! grep -q "^for_window \[class=\"${current_window_class}\"\] floating enable$" "${WORKING_DIR}/conf.d/float.conf"; then
+		printf '%s\n' "for_window [class=\"${current_window_class}\"] floating enable" >> "${WORKING_DIR}/conf.d/float.conf"
+		return
 	fi
 
-	# Check i3-modular-config is installed
-	if command -v i3-modular-config >/dev/null 2>&1; then
-		i3-modular-config
-	fi
+	sed "/^for_window \[class=\"${current_window_class}\"\] floating enable$/d" "${WORKING_DIR}/conf.d/float.conf" > "${TEMP_DIR}"
+	cp "${TEMP_DIR}" "${WORKING_DIR}/conf.d/float.conf"
+}
 
-	# Reload i3 config
+reload(){
 	i3-msg 'reload'
 }
 
 toggle_float(){
-	# Make window float
 	i3-msg 'floating toggle'
 }
 
 main(){
 	setup
+	get_window_info
 	modify_config
+	reload
 	toggle_float
 }
 
-# Trap remove tmp file
-trap 'rm -f "$TMP"' EXIT INT QUIT TERM HUP
+main "${@}"
 
-main "$@"
+trap 'rm -f "${TEMP_DIR}"' EXIT INT QUIT TERM HUP
