@@ -4,7 +4,7 @@
 # License:      GNU GPLv3
 # Description:  Enable or disable floating for specified windows
 
-set -e
+set -eu
 
 XDG_CONFIG_HOME="${XDG_CONFIG_HOME:-${HOME}/.config}"
 WORKING_DIR="${XDG_CONFIG_HOME}/i3"
@@ -24,7 +24,8 @@ setup(){
 get_window_info(){
 	current_active_window_id="$(xdotool getactivewindow)"
 	current_window_class_info="$(xprop WM_CLASS -id "${current_active_window_id}")"
-	current_window_class="$(printf '%s' "${current_window_class_info}" | sed -n 's/^WM_CLASS.*".*".*"\(.*\)"$/\1/p')"
+	current_window_class="$(printf '%s' "${current_window_class_info}" | cut -d ' ' -f 4 | tr -d '"')"
+	current_window_instance="$(printf '%s' "${current_window_class_info}" | cut -d ' ' -f 3 | tr -d '"' | tr -d ',')"
 }
 
 modify_config(){
@@ -33,12 +34,17 @@ modify_config(){
 		return
 	fi
 
-	if ! grep -q "^for_window \[class=\"${current_window_class}\"\] floating enable$" "${WORKING_DIR}/conf.d/float.conf"; then
-		printf '%s\n' "for_window [class=\"${current_window_class}\"] floating enable" >> "${WORKING_DIR}/conf.d/float.conf"
+	if [ -z "${current_window_instance}" ]; then
+		print_error 'Window instance not found.'
 		return
 	fi
 
-	sed "/^for_window \[class=\"${current_window_class}\"\] floating enable$/d" "${WORKING_DIR}/conf.d/float.conf" > "${TEMP_DIR}"
+	if ! grep -q "${current_window_class}.*${current_window_instance}" "${WORKING_DIR}/conf.d/float.conf"; then
+		printf '%s\n' "for_window [class=\"${current_window_class}\" instance=\"${current_window_instance}\"] floating enable" >> "${WORKING_DIR}/conf.d/float.conf"
+		return
+	fi
+
+	sed "/^for_window \[class=\"${current_window_class}\" instance=\"${current_window_instance}\"\] floating enable$/d" "${WORKING_DIR}/conf.d/float.conf" > "${TEMP_DIR}"
 	cp "${TEMP_DIR}" "${WORKING_DIR}/conf.d/float.conf"
 }
 
